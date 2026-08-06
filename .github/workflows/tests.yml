@@ -1,0 +1,94 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - laravel: '12'
+            testbench: '10'
+            database: sqlite
+          - laravel: '12'
+            testbench: '10'
+            database: mysql
+          - laravel: '12'
+            testbench: '10'
+            database: pgsql
+          - laravel: '10'
+            testbench: '8.37'
+            database: sqlite
+          - laravel: '10'
+            testbench: '8.37'
+            database: mysql
+          - laravel: '10'
+            testbench: '8.37'
+            database: pgsql
+          - laravel: '11'
+            testbench: '9'
+            database: sqlite
+          - laravel: '11'
+            testbench: '9'
+            database: mysql
+          - laravel: '11'
+            testbench: '9'
+            database: pgsql
+          - laravel: '13'
+            testbench: '11'
+            database: sqlite
+          - laravel: '13'
+            testbench: '11'
+            database: mysql
+          - laravel: '13'
+            testbench: '11'
+            database: pgsql
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: idempotency
+          MYSQL_ROOT_PASSWORD: secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -psecret"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: idempotency
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      TEST_DB_CONNECTION: ${{ matrix.database }}
+      DB_HOST: 127.0.0.1
+      DB_DATABASE: idempotency
+      DB_USERNAME: ${{ matrix.database == 'pgsql' && 'postgres' || 'root' }}
+      DB_PASSWORD: secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, pdo_pgsql
+          coverage: none
+      - name: Install Laravel ${{ matrix.laravel }} dependencies
+        run: |
+          composer require --dev --no-interaction --no-update "orchestra/testbench:^${{ matrix.testbench }}.0"
+          composer update --no-interaction --prefer-dist --with-all-dependencies "laravel/framework:^${{ matrix.laravel }}.0"
+      - run: composer test
+      - run: composer format -- --test
+      - run: composer analyse
